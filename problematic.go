@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+// Feed formats
+const ATOM_FORMAT string = "atom"
+const RSS_FORMAT string = "rss"
+
 // Debug mode
 var DEBUG bool
 
@@ -42,7 +46,15 @@ func getIssues() (allIssues []github.Issue, err error) {
 	return allIssues, nil
 }
 
-func viewHandler(responseWriter http.ResponseWriter, request *http.Request) {
+func atomViewHandler(responseWriter http.ResponseWriter, request *http.Request) {
+	viewHandler(responseWriter, request, ATOM_FORMAT)
+}
+
+func rssViewHandler(responseWriter http.ResponseWriter, request *http.Request) {
+	viewHandler(responseWriter, request, RSS_FORMAT)
+}
+
+func viewHandler(responseWriter http.ResponseWriter, request *http.Request, format string) {
 	var now = time.Now()
 
 	if DEBUG {
@@ -69,8 +81,9 @@ func viewHandler(responseWriter http.ResponseWriter, request *http.Request) {
 		issue := allIssues[i]
 		user := issue.User
 		var issueItem = &Item{
+			Id:          *issue.HTMLURL,
 			Title:       *issue.Title,
-			Link:        &Link{Href: *issue.URL},
+			Link:        &Link{Href: *issue.HTMLURL},
 			Description: *issue.Body,
 			Author:      &Author{*user.Login, ""},
 			Created:     now,
@@ -78,8 +91,21 @@ func viewHandler(responseWriter http.ResponseWriter, request *http.Request) {
 		feed.Items = append(feed.Items, issueItem)
 	}
 
-	atom, err := feed.ToAtom()
-	fmt.Fprintf(responseWriter, "%v\r\n", atom)
+	type formatter func() (string, error)
+	var feedFormatter formatter
+
+	if format == RSS_FORMAT {
+		feedFormatter = feed.ToRss
+	} else if format == ATOM_FORMAT {
+		feedFormatter = feed.ToAtom
+	}
+	feedOutput, err := feedFormatter()
+	if err != nil {
+		log.Fatal("Failed to generate RSS output for feed data.")
+		os.Exit(1)
+	}
+
+	fmt.Fprint(responseWriter, feedOutput)
 }
 
 func main() {
@@ -97,6 +123,7 @@ func main() {
 		log.Println("Serving at 127.0.0.1:"+Itoa(*serverPort), "|", "Using token: "+token)
 	}
 
-	http.HandleFunc("/issues", viewHandler)
+	http.HandleFunc("/atom", atomViewHandler)
+	http.HandleFunc("/rss", rssViewHandler)
 	http.ListenAndServe(fmt.Sprintf("127.0.0.1:%v", *serverPort), nil)
 }
