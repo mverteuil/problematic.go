@@ -5,6 +5,7 @@ import (
 	"github.com/google/go-github/github"
 	. "github.com/gorilla/feeds"
 	"golang.org/x/oauth2"
+	"net/http"
 	"os"
 	"time"
 )
@@ -33,12 +34,12 @@ func getIssues() (allIssues []github.Issue, err error) {
 	return allIssues, nil
 }
 
-func main() {
+func viewHandler(responseWriter http.ResponseWriter, request *http.Request) {
 	var now = time.Now()
 
 	feed := &Feed{
 		Title:       "My Github Issues",
-		Link:        &Link{Href: "http://localhost/issues"},
+		Link:        &Link{Href: "http://localhost:8888/issues"},
 		Description: "My active github issues",
 		Author:      &Author{"Problematic.go", "problematic.go"},
 		Created:     now,
@@ -66,5 +67,10 @@ func main() {
 	}
 
 	atom, err := feed.ToAtom()
-	fmt.Printf("%v\r\n", atom)
+	fmt.Fprintf(responseWriter, "%v\r\n", atom)
+}
+
+func main() {
+	http.HandleFunc("/issues", viewHandler)
+	http.ListenAndServe("127.0.0.1:8888", nil)
 }
