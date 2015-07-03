@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	. "strconv"
 	. "strings"
 	"time"
 )
@@ -23,6 +22,9 @@ var DEBUG bool
 
 // Github personal access token
 var token string
+
+// Address where requests will be served
+var serverAddress string
 
 func getIssues() (allIssues []github.Issue, err error) {
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
@@ -58,12 +60,12 @@ func viewHandler(responseWriter http.ResponseWriter, request *http.Request, form
 	var now = time.Now()
 
 	if DEBUG {
-		log.Println(request.Method, "\""+request.URL.Path+"\"", "-- S:", request.RemoteAddr[:Index(request.RemoteAddr, ":")])
+		log.Println(request.Method, "\""+request.URL.Path+"\"", "--", request.RemoteAddr[:Index(request.RemoteAddr, ":")])
 	}
 
 	feed := &Feed{
 		Title:       "My Github Issues",
-		Link:        &Link{Href: "http://localhost:8888/issues"},
+		Link:        &Link{Href: "http://" + serverAddress + "/" + format},
 		Description: "My active github issues",
 		Author:      &Author{"Problematic.go", "problematic.go"},
 		Created:     now,
@@ -109,21 +111,24 @@ func viewHandler(responseWriter http.ResponseWriter, request *http.Request, form
 }
 
 func main() {
-	// Handle command line arguments
+	// Define command line arguments
 	flag.BoolVar(&DEBUG, "debug", false, "Enable debugging output")
 	flag.StringVar(&token, "token", "", "Github Personal Access Token")
 	var serverPort = flag.Int("port", 8888, "Port to serve HTTP requsts to.")
+
+	// Handle command line arguments
 	flag.Parse()
 	if token == "" {
 		log.Fatal("You must provide the token argument. Exiting.")
 		os.Exit(1)
 	}
+	serverAddress = fmt.Sprintf("127.0.0.1:%v", *serverPort)
 
 	if DEBUG {
-		log.Println("Serving at 127.0.0.1:"+Itoa(*serverPort), "|", "Using token: "+token)
+		log.Println("Listening for requests at", serverAddress, "using token:", token)
 	}
 
 	http.HandleFunc("/atom", atomViewHandler)
 	http.HandleFunc("/rss", rssViewHandler)
-	http.ListenAndServe(fmt.Sprintf("127.0.0.1:%v", *serverPort), nil)
+	http.ListenAndServe(serverAddress, nil)
 }
